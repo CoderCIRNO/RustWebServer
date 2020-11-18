@@ -68,74 +68,68 @@ fn handle_connection(mut stream: TcpStream){
     let root = "/var/www";
     let mut buffer = [0;512];
     stream.read(&mut buffer).unwrap();
+    let status_code:u16;
     let buffer_to_s = String::from_utf8_lossy(&buffer[..]).to_string();
     let file_name = second_word(&buffer_to_s);
     //输出时间
     let now = time::now();
     let f_now = time::strftime("%Y-%m-%dT%H:%M:%S", &now).unwrap();
     //检查非法访问
-    if !safe_check(&file_name){
-        println!("<b>{:?} 403 GET {}</b>",f_now, file_name);
-        stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
-        stream.flush().unwrap();
-        return;
-    }
-
-    if file_name == "/"{
-        let mut file = match File::open(format!("{}/index.html",root)){
-            Ok(_f) => _f,
-            Err(_) => {
-                println!("<b>{:?} 404 GET {}</b>",f_now, file_name);
-                stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
-                stream.flush().unwrap();
-                return;
-            }
-        };
-
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
-        println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
-        let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
-        stream.write(response.as_bytes()).unwrap();
-        stream.flush().unwrap();
-    }else{
-        let ext = get_ext(&file_name);
-        let mut file = match File::open(format!("{}{}",root,file_name)){
-            Ok(_f) => _f,
-            Err(_) => {
-                println!("<b>{:?} 404 GET {}</b>",f_now, file_name);
-                stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
-                stream.flush().unwrap();
-                return;
-            }
-        };
-        if ext == "html"{
-            let mut contents = String::new();
-            file.read_to_string(&mut contents).unwrap();
-
-            let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
-            println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
-            stream.write(response.as_bytes()).unwrap();
-            stream.flush().unwrap();
+    if safe_check(&file_name){
+        if file_name == "/"{
+            match File::open(format!("{}/index.html",root)){
+                Ok(mut _f) => {
+                    let mut contents = String::new();
+                    _f.read_to_string(&mut contents).unwrap();
+                    status_code = 200;
+                    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
+                    stream.write(response.as_bytes()).unwrap();
+                },
+                Err(_) => {
+                    status_code = 404;
+                    stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
+                }
+            };
         }else{
-            let mut buffer = [0;65535];
-            println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
-            while let std::io::Result::Ok(len) = file.read(&mut buffer){
-    			if len == 0 {
-    				break;
-    			}
-    			else{
-                    match stream.write(&buffer){
-                        Ok(_) => {
-
-                        },
-                        Err(_) => {
-                            break;
+            let ext = get_ext(&file_name);
+            match File::open(format!("{}{}",root,file_name)){
+                Ok(mut _f) => {
+                    if ext == "html"{
+                        let mut contents = String::new();
+                        _f.read_to_string(&mut contents).unwrap();
+                        let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
+                        status_code = 200;
+                        stream.write(response.as_bytes()).unwrap();
+                    }else{
+                        let mut buffer = [0;65535];
+                        status_code = 200;
+                        while let std::io::Result::Ok(len) = _f.read(&mut buffer){
+                			if len == 0 {
+                				break;
+                			}
+                			else{
+                                match stream.write(&buffer){
+                                    Ok(_) => {
+                                        continue;
+                                    },
+                                    Err(_) => {
+                                        break;
+                                    }
+                                };
+                			}
                         }
-                    };
-    			}
-            }
-            stream.flush().unwrap();
+                    }
+                },
+                Err(_) => {
+                    status_code = 404;
+                    stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
+                }
+            };
         }
+    }else{
+        status_code = 403;
+        stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
     }
+    println!("{:?} {} GET {}",f_now, status_code, file_name);
+    stream.flush().unwrap();
 }

@@ -17,7 +17,7 @@ fn main() {
         });
     }
 }
-
+//从请求头中解析文件路径
 fn second_word(s: &String)->&str{
     let byte = s.as_bytes();
     let mut first:usize = 0;
@@ -34,7 +34,7 @@ fn second_word(s: &String)->&str{
     }
     &s[..]
 }
-
+//从路径中解析文件拓展名
 fn get_ext(s: &str)->&str{
     let byte = s.as_bytes();
     for (i,&elem) in byte.iter().enumerate(){
@@ -45,17 +45,41 @@ fn get_ext(s: &str)->&str{
     &s[..]
 }
 
-fn handle_connection(mut stream: TcpStream){
+fn safe_check(s: &str)->bool{
+    let byte = s.as_bytes();
+    if byte.len() == 0{
+        return false;
+    }
+    let mut prev = byte[0];
+    //检测是否返回上层
+    for (i,&elem) in byte.iter().enumerate(){
+        if elem == b'.'{
+            if prev == elem{
+                return false;
+            }
+        }
+        prev = elem;
+    }
+    true
+}
 
+fn handle_connection(mut stream: TcpStream){
+    //index根目录
     let root = "/var/www";
     let mut buffer = [0;512];
     stream.read(&mut buffer).unwrap();
     let buffer_to_s = String::from_utf8_lossy(&buffer[..]).to_string();
     let file_name = second_word(&buffer_to_s);
-
+    //输出时间
     let now = time::now();
     let f_now = time::strftime("%Y-%m-%dT%H:%M:%S", &now).unwrap();
-    println!("{:?} GET {}",f_now, file_name);
+    //检查非法访问
+    if !safe_check(&file_name){
+        stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
+        stream.flush().unwrap();
+        return;
+    }
+    println!("<b>{:?} GET {}</b>",f_now, file_name);
 
     if file_name == "/"{
         let mut file = match File::open(format!("{}/index.html",root)){

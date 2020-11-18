@@ -77,6 +77,7 @@ fn handle_connection(mut stream: TcpStream){
         Ok(addr) => addr.ip().to_string(),
         Err(_) => String::from("Unknown"),
     };
+    let time = get_time();
     stream.read(&mut buffer).unwrap();
     let status_code:u16;
     let buffer_to_s = String::from_utf8_lossy(&buffer[..]).to_string();
@@ -137,6 +138,6 @@ fn handle_connection(mut stream: TcpStream){
         status_code = 403;
         stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
     }
-    println!("{} {} {} GET {}",get_time(), status_code, client_ip, file_name);
+    println!("{} {} {} GET {}", time, status_code, client_ip, file_name);
     stream.flush().unwrap();
 }

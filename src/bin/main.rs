@@ -9,7 +9,7 @@ use time;
 
 fn main() {
     let listener = TcpListener::bind("0.0.0.0:80").unwrap();
-    let pool = ThreadPool::new(4);
+    let pool = ThreadPool::new(8);
     for stream in listener.incoming(){
         let stream = stream.unwrap();
         pool.execute(||{
@@ -75,16 +75,17 @@ fn handle_connection(mut stream: TcpStream){
     let f_now = time::strftime("%Y-%m-%dT%H:%M:%S", &now).unwrap();
     //检查非法访问
     if !safe_check(&file_name){
+        println!("<b>{:?} 403 GET {}</b>",f_now, file_name);
         stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
         stream.flush().unwrap();
         return;
     }
-    println!("<b>{:?} GET {}</b>",f_now, file_name);
 
     if file_name == "/"{
         let mut file = match File::open(format!("{}/index.html",root)){
             Ok(_f) => _f,
             Err(_) => {
+                println!("<b>{:?} 404 GET {}</b>",f_now, file_name);
                 stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
                 stream.flush().unwrap();
                 return;
@@ -93,7 +94,7 @@ fn handle_connection(mut stream: TcpStream){
 
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
-
+        println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
         let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
         stream.write(response.as_bytes()).unwrap();
         stream.flush().unwrap();
@@ -102,6 +103,7 @@ fn handle_connection(mut stream: TcpStream){
         let mut file = match File::open(format!("{}{}",root,file_name)){
             Ok(_f) => _f,
             Err(_) => {
+                println!("<b>{:?} 404 GET {}</b>",f_now, file_name);
                 stream.write("HTTP/1.1 404 NOT FOUND\r\n\r\n".as_bytes()).unwrap();
                 stream.flush().unwrap();
                 return;
@@ -112,10 +114,12 @@ fn handle_connection(mut stream: TcpStream){
             file.read_to_string(&mut contents).unwrap();
 
             let response = format!("HTTP/1.1 200 OK\r\n\r\n{}",contents);
+            println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
             stream.write(response.as_bytes()).unwrap();
             stream.flush().unwrap();
         }else{
             let mut buffer = [0;65535];
+            println!("<b>{:?} 200 GET {}</b>",f_now, file_name);
             while let std::io::Result::Ok(len) = file.read(&mut buffer){
     			if len == 0 {
     				break;

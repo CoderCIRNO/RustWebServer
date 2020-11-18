@@ -17,6 +17,12 @@ fn main() {
         });
     }
 }
+
+fn get_time()->String{
+    let now = time::now();
+    time::strftime("%Y-%m-%d %H:%M:%S", &now).unwrap()
+}
+
 //从请求头中解析文件路径
 fn second_word(s: &String)->&str{
     let byte = s.as_bytes();
@@ -52,7 +58,7 @@ fn safe_check(s: &str)->bool{
     }
     let mut prev = byte[0];
     //检测是否返回上层
-    for (i,&elem) in byte.iter().enumerate(){
+    for (_i,&elem) in byte.iter().enumerate(){
         if elem == b'.'{
             if prev == elem{
                 return false;
@@ -67,13 +73,14 @@ fn handle_connection(mut stream: TcpStream){
     //index根目录
     let root = "/var/www";
     let mut buffer = [0;512];
+    let client_ip = match stream.peer_addr(){
+        Ok(addr) => addr.ip().to_string(),
+        Err(_) => String::from("Unknown"),
+    };
     stream.read(&mut buffer).unwrap();
     let status_code:u16;
     let buffer_to_s = String::from_utf8_lossy(&buffer[..]).to_string();
     let file_name = second_word(&buffer_to_s);
-    //输出时间
-    let now = time::now();
-    let f_now = time::strftime("%Y-%m-%dT%H:%M:%S", &now).unwrap();
     //检查非法访问
     if safe_check(&file_name){
         if file_name == "/"{
@@ -130,6 +137,6 @@ fn handle_connection(mut stream: TcpStream){
         status_code = 403;
         stream.write("HTTP/1.1 403 FORBIDDEN\r\n\r\n".as_bytes()).unwrap();
     }
-    println!("{:?} {} GET {}",f_now, status_code, file_name);
+    println!("{} {} {} GET {}",get_time(), status_code, client_ip, file_name);
     stream.flush().unwrap();
 }
